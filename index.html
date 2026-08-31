@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OceanTwin 360 | Global 3D Ocean Digital Twin & In-Situ Observation Platform</title>
+  <meta name="description" content="OceanTwin 360 - 3D Ocean Digital Twin integrating numerical ocean models and in-situ observations for Ministry of Earth Sciences (MoES) - SIH26067." />
+  
+  <!-- Google Fonts for Scientific Dashboard -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  
+  <!-- FontAwesome Icons for Scientific Instruments -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css" />
+  
+  <!-- Three.js and OrbitControls via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body class="theme-dark">
+  <!-- Top Navigation Bar -->
+  <header class="top-nav" id="topNav">
+    <div class="nav-brand">
+      <div class="brand-logo-wrapper">
+        <span class="brand-icon">🌊</span>
+        <div class="brand-text">
+          <div class="brand-title">OceanTwin <span class="brand-badge-highlight">360</span></div>
+          <div class="brand-subtitle">MoES SIH26067 • Numerical Models & In-Situ Digital Twin</div>
+        </div>
+      </div>
+      <div class="moes-badge">
+        <i class="fa-solid fa-earth-asia"></i>
+        <span>MoES / INCOIS Portal</span>
+      </div>
+    </div>
+
+    <!-- Center Navigation Links -->
+    <nav class="nav-links">
+      <button class="nav-link active" data-view="dashboard" id="navDashboardBtn">
+        <i class="fa-solid fa-gauge-high"></i> <span>Dashboard</span>
+      </button>
+      <button class="nav-link" data-view="explorer" id="navExplorerBtn">
+        <i class="fa-solid fa-globe"></i> <span>Ocean Explorer</span>
+      </button>
+      <button class="nav-link" data-view="observations" id="navObservationsBtn">
+        <i class="fa-solid fa-satellite-dish"></i> <span>Observations</span>
+      </button>
+      <button class="nav-link" data-view="analytics" id="navAnalyticsBtn">
+        <i class="fa-solid fa-chart-line"></i> <span>Analytics & Anomaly</span>
+      </button>
+      <button class="nav-link" data-view="marine-impact" id="navImpactBtn">
+        <i class="fa-solid fa-fish-fins"></i> <span>Marine Impact</span>
+      </button>
+    </nav>
+
+    <!-- Right Controls: Search, Notifications, Download, Settings -->
+    <div class="nav-actions">
+      <!-- Global Location Search -->
+      <div class="search-container" id="searchContainer">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" id="globalSearchInput" placeholder="Search ocean, sea, or coastal city..." autocomplete="off" />
+        <button class="search-clear-btn" id="searchClearBtn" aria-label="Clear search" style="display: none;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <!-- Search Auto-suggest Dropdown -->
+        <div class="search-suggestions" id="searchSuggestions"></div>
+      </div>
+
+      <button class="action-btn" id="dataExportNavBtn" title="Download Simulated CSV Dataset">
+        <i class="fa-solid fa-download"></i>
+        <span class="btn-text">Export CSV</span>
+      </button>
+
+      <button class="action-btn icon-only" id="notificationsBtn" title="Alerts & Notifications">
+        <i class="fa-solid fa-bell"></i>
+        <span class="notification-badge" id="notificationBadge">3</span>
+      </button>
+
+      <button class="action-btn icon-only" id="settingsBtn" title="Dashboard Settings">
+        <i class="fa-solid fa-sliders"></i>
+      </button>
+      
+      <button class="mobile-toggle-btn" id="mobileMenuToggle" aria-label="Toggle Navigation Drawer">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Live Top Statistics Bar (Animated Counters) -->
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-card">
+      <div class="stat-icon-wrapper ocean"><i class="fa-solid fa-water"></i></div>
+      <div class="stat-content">
+        <div class="stat-label">Active Observations</div>
+        <div class="stat-value" id="statObservations">1,248</div>
+      </div>
+      <div class="stat-trend positive"><i class="fa-solid fa-arrow-trend-up"></i> +12/hr</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon-wrapper sensor"><i class="fa-solid fa-satellite-dish"></i></div>
+      <div class="stat-content">
+        <div class="stat-label">In-Situ Sensors (Argo/Buoy)</div>
+        <div class="stat-value" id="statSensors">86</div>
+      </div>
+      <div class="stat-sub">98.8% online</div>
+    </div>
+
+    <div class="stat-card alert-stat">
+      <div class="stat-icon-wrapper anomaly"><i class="fa-solid fa-triangle-exclamation"></i></div>
+      <div class="stat-content">
+        <div class="stat-label">Ocean Anomalies</div>
+        <div class="stat-value" id="statAnomalies">14</div>
+      </div>
+      <div class="stat-trend alert"><i class="fa-solid fa-circle-exclamation"></i> 4 High</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon-wrapper temp"><i class="fa-solid fa-temperature-three-quarters"></i></div>
+      <div class="stat-content">
+        <div class="stat-label">Avg Sea Surface Temp</div>
+        <div class="stat-value" id="statAvgTemp">27.8°C</div>
+      </div>
+      <div class="stat-sub">Tropical Basin</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon-wrapper model"><i class="fa-solid fa-microchip"></i></div>
+      <div class="stat-content">
+        <div class="stat-label">Model Convergence</div>
+        <div class="stat-value" id="statModelConvergence">94.2%</div>
+      </div>
+      <div class="stat-sub">INCOIS ROMS vs In-Situ</div>
+    </div>
+  </div>
+
+  <!-- Main Viewport / 3D Scene Container -->
+  <main class="main-viewport" id="mainViewport">
+    <!-- 3D Three.js WebGL Canvas -->
+    <div class="canvas-container" id="canvasContainer">
+      <canvas id="globeCanvas"></canvas>
+      <div class="canvas-overlay-grid"></div>
+      
+      <!-- 3D Globe HUD Coordinates & Info Overlay -->
+      <div class="globe-hud-overlay">
+        <div class="hud-target-info">
+          <span class="hud-label">FOCUSED REGION:</span>
+          <span class="hud-value" id="hudRegionName">Indian Ocean / Bay of Bengal</span>
+          <span class="hud-coords" id="hudCoords">12.50° N, 86.20° E • Alt: 2,450 km</span>
+        </div>
+        <div class="hud-controls-hint">
+          <span><i class="fa-solid fa-computer-mouse"></i> Left Drag: Rotate</span>
+          <span><i class="fa-solid fa-arrows-up-down"></i> Scroll: Zoom</span>
+          <span><i class="fa-solid fa-hand-pointer"></i> Click: Inspect Sensor</span>
+        </div>
+      </div>
+
+      <!-- Quick 3D Camera Controls -->
+      <div class="camera-controls-toolbar">
+        <button class="cam-btn" id="camResetBtn" title="Reset View (Indian Ocean)">
+          <i class="fa-solid fa-compass"></i>
+        </button>
+        <button class="cam-btn" id="camZoomInBtn" title="Zoom In">
+          <i class="fa-solid fa-plus"></i>
+        </button>
+        <button class="cam-btn" id="camZoomOutBtn" title="Zoom Out">
+          <i class="fa-solid fa-minus"></i>
+        </button>
+        <button class="cam-btn" id="camRotateToggleBtn" title="Toggle Auto-Rotation">
+          <i class="fa-solid fa-rotate"></i>
+        </button>
+        <button class="cam-btn" id="camCurrentsToggleBtn" title="Toggle Ocean Current Flowlines" class="active">
+          <i class="fa-solid fa-wind"></i>
+        </button>
+      </div>
+
+      <!-- Sensor Raycast Hover Tooltip -->
+      <div class="sensor-hover-tooltip" id="sensorHoverTooltip">
+        <div class="tooltip-header" id="tooltipHeader">Sensor ID</div>
+        <div class="tooltip-body" id="tooltipBody">Details...</div>
+      </div>
+    </div>
+
+    <!-- FLOATING LEFT PANEL: Ocean Controls, Global Selector, Model vs Observation -->
+    <aside class="dashboard-panel panel-left" id="panelLeft">
+      <!-- 🌍 Global Ocean Selector -->
+      <div class="glass-card global-ocean-card">
+        <div class="card-header">
+          <div class="header-title">
+            <i class="fa-solid fa-earth-americas icon-accent"></i>
+            <h3>Explore Global Oceans</h3>
+          </div>
+          <span class="badge badge-pulse">Global 360°</span>
+        </div>
+        <div class="ocean-tabs-grid">
+          <button class="ocean-tab active" data-ocean="indian" id="oceanTabIndian">
+            <span class="ocean-tab-name">🌊 Indian Ocean</span>
+            <span class="ocean-status-badge status-elevated">Elevated</span>
+          </button>
+          <button class="ocean-tab" data-ocean="pacific" id="oceanTabPacific">
+            <span class="ocean-tab-name">🌊 Pacific Ocean</span>
+            <span class="ocean-status-badge status-normal">Normal</span>
+          </button>
+          <button class="ocean-tab" data-ocean="atlantic" id="oceanTabAtlantic">
+            <span class="ocean-tab-name">🌊 Atlantic Ocean</span>
+            <span class="ocean-status-badge status-moderate">Moderate</span>
+          </button>
+          <button class="ocean-tab" data-ocean="arctic" id="oceanTabArctic">
+            <span class="ocean-tab-name">❄️ Arctic Ocean</span>
+            <span class="ocean-status-badge status-high">High Anomaly</span>
+          </button>
+          <button class="ocean-tab" data-ocean="southern" id="oceanTabSouthern">
+            <span class="ocean-tab-name">🌊 Southern Ocean</span>
+            <span class="ocean-status-badge status-normal">Normal</span>
+          </button>
+        </div>
+
+        <!-- Regional Seas Quick Tags -->
+        <div class="seas-quick-tags">
+          <span class="tag-label">Key Seas:</span>
+          <button class="sea-tag active" data-location="bay_of_bengal">Bay of Bengal</button>
+          <button class="sea-tag" data-location="arabian_sea">Arabian Sea</button>
+          <button class="sea-tag" data-location="andaman_sea">Andaman Sea</button>
+          <button class="sea-tag" data-location="south_china_sea">South China Sea</button>
+          <button class="sea-tag" data-location="mediterranean">Mediterranean</button>
+        </div>
+      </div>
+
+      <!-- 🎛️ Ocean Data Controls: Parameter, Depth, Time -->
+      <div class="glass-card ocean-controls-card">
+        <div class="card-header">
+          <div class="header-title">
+            <i class="fa-solid fa-sliders icon-accent"></i>
+            <h3>Ocean Parameter Controls</h3>
+          </div>
+          <span class="parameter-unit-tag" id="currentParamUnit">°C (SST)</span>
+        </div>
+
+        <!-- Parameter Selector Grid -->
+        <div class="param-selector-grid" id="paramSelectorGrid">
+          <button class="param-btn active" data-param="temperature">
+            <i class="fa-solid fa-temperature-high"></i>
+            <span>Temperature</span>
+          </button>
+          <button class="param-btn" data-param="salinity">
+            <i class="fa-solid fa-droplet"></i>
+            <span>Salinity</span>
+          </button>
+          <button class="param-btn" data-param="currents">
+            <i class="fa-solid fa-water"></i>
+            <span>Ocean Currents</span>
+          </button>
+          <button class="param-btn" data-param="wave_height">
+            <i class="fa-solid fa-volcano"></i>
+            <span>Wave Height</span>
+          </button>
+          <button class="param-btn" data-param="sea_level">
+            <i class="fa-solid fa-chart-area"></i>
+            <span>Sea Level Anom.</span>
+          </button>
+          <button class="param-btn" data-param="dissolved_oxygen">
+            <i class="fa-solid fa-lungs"></i>
+            <span>Dissolved O₂</span>
+          </button>
+        </div>
+
+        <!-- Dynamic Parameter Color Legend Bar -->
+        <div class="legend-container">
+          <div class="legend-header">
+            <span id="legendTitle">Sea Surface Temperature Range</span>
+            <span class="legend-unit" id="legendUnit">Scale: 18°C – 32°C</span>
+          </div>
+          <div class="legend-color-bar" id="legendColorBar"></div>
+          <div class="legend-scale-labels" id="legendScaleLabels">
+            <span>18°C (Min)</span>
+            <span>25°C</span>
+            <span>28°C</span>
+            <span>32°C (Max)</span>
+          </div>
+        </div>
+
+        <!-- Depth Slider (0m to 1000m) -->
+        <div class="control-group depth-group">
+          <div class="control-label-row">
+            <span class="ctrl-label"><i class="fa-solid fa-arrow-down-up-across-line"></i> Ocean Depth Layer</span>
+            <span class="ctrl-val-badge" id="depthValueDisplay">Surface (0 m)</span>
+          </div>
+          <input type="range" id="depthSlider" min="0" max="4" step="1" value="0" class="custom-range-slider" />
+          <div class="depth-ticks">
+            <span class="tick active" data-val="0">Surface</span>
+            <span class="tick" data-val="1">50 m</span>
+            <span class="tick" data-val="2">100 m</span>
+            <span class="tick" data-val="3">500 m</span>
+            <span class="tick" data-val="4">1000 m</span>
+          </div>
+        </div>
+
+        <!-- Temporal / Date Slider with Play Animation -->
+        <div class="control-group time-group">
+          <div class="control-label-row">
+            <span class="ctrl-label"><i class="fa-solid fa-clock-rotate-left"></i> Model Forecast & In-Situ Time</span>
+            <span class="ctrl-val-badge time-badge" id="dateValueDisplay">31 Aug 2026</span>
+          </div>
+          <div class="time-controls-row">
+            <button class="play-btn" id="playTimeBtn" title="Play/Pause Temporal Simulation">
+              <i class="fa-solid fa-play" id="playIcon"></i>
+              <span id="playBtnText">Play Time</span>
+            </button>
+            <input type="range" id="timeSlider" min="0" max="6" step="1" value="6" class="custom-range-slider time-slider-input" />
+          </div>
+          <div class="time-ticks">
+            <span>25 Aug</span>
+            <span>26 Aug</span>
+            <span>27 Aug</span>
+            <span>28 Aug</span>
+            <span>29 Aug</span>
+            <span>30 Aug</span>
+            <span class="active">31 Aug 2026</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🔬 MODEL vs REAL OBSERVATION CARD (Core Feature) -->
+      <div class="glass-card model-vs-obs-card" id="modelVsObsCard">
+        <div class="card-header">
+          <div class="header-title">
+            <i class="fa-solid fa-code-compare icon-accent"></i>
+            <h3>Model vs Real Observation</h3>
+          </div>
+          <span class="accuracy-badge" id="accuracyScoreBadge">Accuracy: 97.2%</span>
+        </div>
+
+        <div class="comparison-target-info">
+          <div class="target-location">
+            <i class="fa-solid fa-location-dot"></i>
+            <span id="compLocationName">Bay of Bengal Central (BD-08)</span>
+          </div>
+          <div class="target-param" id="compParamName">Parameter: Temperature (0m)</div>
+        </div>
+
+        <!-- Comparison Metric Cards Grid -->
+        <div class="comparison-grid">
+          <div class="comp-col model-col">
+            <div class="col-header"><i class="fa-solid fa-laptop-code"></i> Numerical Model</div>
+            <div class="comp-val" id="modelValDisplay">29.1°C</div>
+            <div class="comp-source">INCOIS ROMS v3.8</div>
+          </div>
+          <div class="comp-diff-col">
+            <div class="col-header">Difference (Δ)</div>
+            <div class="comp-diff positive" id="diffValDisplay">+0.8°C</div>
+            <div class="comp-bias-tag">Model Overestimate</div>
+          </div>
+          <div class="comp-col obs-col">
+            <div class="col-header"><i class="fa-solid fa-satellite-dish"></i> In-Situ Sensor</div>
+            <div class="comp-val" id="obsValDisplay">28.3°C</div>
+            <div class="comp-source" id="obsSourceDisplay">OMNI Moored Buoy #BD-08</div>
+          </div>
+        </div>
+
+        <!-- Deviation Progress Bar Gauge -->
+        <div class="gauge-wrapper">
+          <div class="gauge-labels">
+            <span>Model: 29.1°C</span>
+            <span>Obs: 28.3°C</span>
+          </div>
+          <div class="dual-progress-bar">
+            <div class="progress-fill model-fill" id="modelBarFill" style="width: 78%;"></div>
+            <div class="progress-fill obs-fill" id="obsBarFill" style="width: 72%;"></div>
+            <div class="indicator-needle" id="gaugeNeedle" style="left: 75%;"></div>
+          </div>
+          <div class="gauge-footer-note">Standard Deviation: ±0.42 • RMSE: 0.61 • Bias: +0.8</div>
+        </div>
+
+        <!-- Action Button: Open Deep Compare Modal -->
+        <button class="btn btn-primary full-width" id="openCompareModalBtn">
+          <i class="fa-solid fa-chart-column"></i>
+          <span>Deep Compare Time-Series & Profiles</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- FLOATING RIGHT PANEL: Ocean Profile Graph, Anomaly Analytics, Marine Ecosystem, AI Assistant -->
+    <aside class="dashboard-panel panel-right" id="panelRight">
+      <!-- 📈 Ocean Vertical Depth Profile Graph -->
+      <div class="glass-card profile-graph-card">
+        <div class="card-header">
+          <div class="header-title">
+            <i class="fa-solid fa-chart-area icon-accent"></i>
+            <h3>Ocean Depth Profile</h3>
+          </div>
+          <div class="profile-tabs">
+            <button class="profile-tab active" data-graph="temperature">Temp</button>
+            <button class="profile-tab" data-graph="salinity">Salinity</button>
+            <button class="profile-tab" data-graph="oxygen">O₂</button>
+          </div>
+        </div>
+        
+        <div class="canvas-chart-wrapper">
+          <canvas id="oceanProfileCanvas" width="340" height="190"></canvas>
+        </div>
+        <div class="chart-legend-row">
+          <div class="chart-legend-item">
+            <span class="legend-line line-model"></span>
+            <span>Numerical Model (ROMS)</span>
+          </div>
+          <div class="chart-legend-item">
+            <span class="legend-line line-obs"></span>
+            <span>In-Situ CTD / Argo #1024</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⚠️ Ocean Anomaly Detection Card -->
+      <div class="glass-card anomaly-card">
+        <div class="card-header">
+          <div class="header-title">
+            <i class="fa-solid fa-triangle-exclamation icon-alert"></i>
+            <h3>Ocean Anomaly Detection</h3>
+          </div>
+          <span class="severity-badge severity-high" id="anomalySeverityBadge">HIGH ALERT</span>
+        </div>
+
+        <div class="anomaly-body">
+          <div class="anomaly-location-row">
+            <div class="anomaly-loc-name" id="anomalyLocName">Bay of Bengal North</div>
+            <div class="anomaly-metric-delta" id="anomalyDelta">+2.1°C SST Anomaly</div>
+          </div>
+          <p class="anomaly-explanation" id="anomalyExplanation">
+            Simulated sea surface temperature is significantly above the reference climatological normal. High risk of marine heatwave conditions influencing regional cyclonic eddy formation.
+          </p>
+
+          <!-- Quick Anomaly Hotspots List -->
+          <div class="anomaly-hotspots-list">
+            <div class="hotspot-item active" data-loc="bay_of_bengal">
+              <span class="hotspot-dot high"></span>
+              <span class="hotspot-name">Bay of Bengal (+2.1°C)</span>
+              <span class="hotspot-tag">Heatwave</span>
+            </div>
+            <div class="hotspot-item" data-loc="arabian_sea">
+              <span class="hotspot-dot medium"></span>
+              <span class="hotspot-name">Arabian Sea (+1.4°C)</span>
+              <span class="hotspot-tag">Salinity Surge</span>
+            </div>
+            <div class="hotspot-item" data-loc="arctic">
+              <span class="hotspot-dot high"></span>
+              <span class="hotspot-name">Arctic Beaufort (+3.2°C)</span>
+              <span class="hotspot-tag">Sea Ice Melting</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🐟 Marine Ecosystem Impact Card -->
+      <div class="glass-card marine-impact-card">
+        <div class="card-header">
+          <div class="header-title">
+            <i class="fa-solid fa-fish-fins icon-marine"></i>
+            <h3>Marine Ecosystem Impact</h3>
+          </div>
+          <span class="risk-badge risk-moderate" id="overallEcosystemRisk">RISK: MODERATE</span>
+        </div>
+
+        <div class="ecosystem-stress-grid">
+          <div class="stress-item">
+            <span class="stress-label">Temperature Stress</span>
+            <span class="stress-val stress-high" id="tempStressVal">HIGH</span>
+          </div>
+          <div class="stress-item">
+            <span class="stress-label">Oxygen Stress (OMZ)</span>
+            <span class="stress-val stress-low" id="oxygenStressVal">LOW</span>
+          </div>
+          <div class="stress-item">
+            <span class="stress-label">Salinity Stress</span>
+            <span class="stress-val stress-normal" id="salinityStressVal">NORMAL</span>
+          </div>
+        </div>
+
+        <p class="marine-advisory-text" id="marineAdvisoryText">
+          “Elevated temperature may create thermal stress for sensitive reef calcification and pelagic fisheries in the Gulf of Mannar & Andaman shelf if the condition persists.”
+        </p>
+
+        <div class="impact-toggle-row">
+          <span><i class="fa-solid fa-layer-group"></i> Highlight Marine Impact Zones</span>
+          <label class="switch">
+            <input type="checkbox" id="toggleMarineLayer" checked />
+            <span class="slider round"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 🚨 Ocean Risk Monitor / Disaster Intelligence -->
+      <div class="glass-card risk-monitor-card">
+        <div class="card-header">
+          <div class="header-title">
+            <i class="fa-solid fa-tower-broadcast icon-alert"></i>
+            <h3>Ocean Risk Monitor</h3>
+          </div>
+          <span class="badge badge-danger">3 Active Alerts</span>
+        </div>
+        <div class="risk-alerts-feed" id="riskAlertsFeed">
+          <div class="risk-alert-item high-risk" data-target="bay_of_bengal">
+            <div class="risk-badge-mini">HIGH</div>
+            <div class="risk-info">
+              <div class="risk-zone">Bay of Bengal Central</div>
+              <div class="risk-desc">Unusual Sea-Level Rise & Low Pressure System</div>
+            </div>
+            <i class="fa-solid fa-chevron-right fly-icon"></i>
+          </div>
+          <div class="risk-alert-item medium-risk" data-target="arabian_sea">
+            <div class="risk-badge-mini">MEDIUM</div>
+            <div class="risk-info">
+              <div class="risk-zone">Arabian Sea Offshore</div>
+              <div class="risk-desc">High Wave Swell Advisory (3.8m - 4.4m)</div>
+            </div>
+            <i class="fa-solid fa-chevron-right fly-icon"></i>
+          </div>
+          <div class="risk-alert-item low-risk" data-target="indian">
+            <div class="risk-badge-mini">LOW</div>
+            <div class="risk-info">
+              <div class="risk-zone">Equatorial Indian Ocean</div>
+              <div class="risk-desc">Positive Indian Ocean Dipole (IOD) SST Anomaly</div>
+            </div>
+            <i class="fa-solid fa-chevron-right fly-icon"></i>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- FLOATING AI OCEAN ASSISTANT WIDGET (Bottom-Right Collapsible) -->
+    <div class="ai-assistant-wrapper" id="aiAssistantWrapper">
+      <button class="ai-assistant-toggle-btn" id="aiToggleBtn">
+        <div class="ai-avatar"><i class="fa-solid fa-robot"></i></div>
+        <span class="ai-btn-text">AI Ocean Assistant</span>
+        <span class="ai-status-pulse"></span>
+      </button>
+
+      <div class="ai-assistant-modal" id="aiAssistantModal">
+        <div class="ai-modal-header">
+          <div class="ai-modal-title">
+            <i class="fa-solid fa-brain icon-accent"></i>
+            <div>
+              <div class="ai-name">MoES AI Ocean Twin Assistant</div>
+              <div class="ai-status-sub">Integrated Knowledge Base & Anomaly NLP</div>
+            </div>
+          </div>
+          <button class="ai-close-btn" id="aiCloseBtn" aria-label="Close Assistant">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <!-- Chat Conversation Body -->
+        <div class="ai-chat-messages" id="aiChatMessages">
+          <div class="chat-msg assistant">
+            <div class="msg-avatar"><i class="fa-solid fa-robot"></i></div>
+            <div class="msg-bubble">
+              Hello! I am your <strong>OceanTwin 360 AI Assistant</strong>. I integrate numerical ocean model forecasts (INCOIS ROMS) with real-time in-situ Argo floats and moored buoys. How can I assist your scientific analysis today?
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Prompt Suggestion Pills -->
+        <div class="ai-quick-prompts" id="aiQuickPrompts">
+          <button class="prompt-pill" data-question="Why is the temperature high in the Bay of Bengal?">
+            🌡️ Why is temperature high in Bay of Bengal?
+          </button>
+          <button class="prompt-pill" data-question="Compare model vs in-situ sensor data.">
+            🔬 Compare model and sensor data
+          </button>
+          <button class="prompt-pill" data-question="Show unusual ocean conditions and anomalies.">
+            ⚠️ Show unusual ocean conditions
+          </button>
+          <button class="prompt-pill" data-question="What is the aquatic-life impact right now?">
+            🐟 What is the aquatic-life impact?
+          </button>
+          <button class="prompt-pill" data-question="Show the deepest ocean observation.">
+            ⚓ Show the deepest observation
+          </button>
+        </div>
+
+        <!-- Chat Input Bar -->
+        <form class="ai-input-form" id="aiInputForm">
+          <input type="text" id="aiInputField" placeholder="Ask anything about ocean models, buoys, anomalies..." autocomplete="off" />
+          <button type="submit" class="ai-send-btn" id="aiSendBtn" aria-label="Send query">
+            <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <!-- FLOATING BOTTOM GLOBAL LEGEND & LAYER TOGGLE BAR -->
+  <footer class="bottom-legend-bar">
+    <div class="legend-items-row">
+      <div class="legend-badge"><i class="fa-solid fa-laptop-code text-cyan"></i> <span>Numerical Model</span></div>
+      <div class="legend-badge"><i class="fa-solid fa-satellite-dish text-blue"></i> <span>In-Situ Sensor (Argo/Buoy)</span></div>
+      <div class="legend-badge"><i class="fa-solid fa-ship text-emerald"></i> <span>Research Vessel</span></div>
+      <div class="legend-badge"><i class="fa-solid fa-triangle-exclamation text-alert"></i> <span>Ocean Anomaly</span></div>
+      <div class="legend-badge"><i class="fa-solid fa-fish-fins text-marine"></i> <span>Marine Impact Zone</span></div>
+      <div class="legend-badge"><i class="fa-solid fa-tower-broadcast text-warning"></i> <span>Risk Zone</span></div>
+    </div>
+    <div class="legend-actions">
+      <button class="btn btn-sm btn-outline" id="downloadCsvBtnFooter">
+        <i class="fa-solid fa-file-csv"></i> Download CSV Dataset
+      </button>
+      <button class="btn btn-sm btn-outline" id="viewAllSensorsBtn">
+        <i class="fa-solid fa-list-check"></i> Sensor Directory (25+)
+      </button>
+    </div>
+  </footer>
+
+  <!-- ================= MODALS & POPUPS ================= -->
+
+  <!-- 1. SENSOR / BUOY PROFILE DETAIL MODAL -->
+  <div class="modal-backdrop" id="sensorModalBackdrop">
+    <div class="modal-dialog sensor-modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="sensor-type-icon" id="modalSensorIcon"><i class="fa-solid fa-satellite-dish"></i></span>
+          <div>
+            <h3 id="modalSensorTitle">ARGO FLOAT #IN-1024</h3>
+            <span class="modal-subtitle" id="modalSensorSub">Bay of Bengal Central • Active Telemetry</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeSensorModalBtn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="sensor-meta-grid">
+          <div class="meta-item">
+            <span class="meta-label">Coordinates</span>
+            <span class="meta-val" id="modalSensorCoords">12.54° N, 86.18° E</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Observation Depth</span>
+            <span class="meta-val" id="modalSensorDepth">100 m</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Temperature</span>
+            <span class="meta-val highlight" id="modalSensorTemp">27.8°C</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Salinity</span>
+            <span class="meta-val" id="modalSensorSalinity">34.5 PSU</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Dissolved O₂</span>
+            <span class="meta-val" id="modalSensorOxygen">5.2 mg/L</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Current Velocity</span>
+            <span class="meta-val" id="modalSensorCurrent">0.42 m/s</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Last Transmission</span>
+            <span class="meta-val" id="modalSensorTime">2 hours ago (IRIDIUM)</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Quality Flag</span>
+            <span class="meta-val badge-qc-pass" id="modalSensorQC">QC Level 1 Passed</span>
+          </div>
+        </div>
+
+        <!-- Sensor CTD Profile Graph in Modal -->
+        <div class="modal-chart-section">
+          <h4>Vertical CTD Sensor Profile (Depth vs Temp & Salinity)</h4>
+          <canvas id="sensorModalCanvas" width="560" height="220"></canvas>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modalFlyToSensorBtn"><i class="fa-solid fa-crosshairs"></i> Fly to Sensor</button>
+        <button class="btn btn-primary" id="modalDownloadSensorDataBtn"><i class="fa-solid fa-download"></i> Export Sensor Log</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. MODEL VS OBSERVATION DEEP COMPARE MODAL -->
+  <div class="modal-backdrop" id="compareModalBackdrop">
+    <div class="modal-dialog compare-modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <i class="fa-solid fa-code-compare icon-accent"></i>
+          <div>
+            <h3>Integrated Ocean Model vs In-Situ Sensor Analytics</h3>
+            <span class="modal-subtitle">INCOIS ROMS High-Resolution vs RAMA Buoys & Argo Network</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeCompareModalBtn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="compare-summary-metrics">
+          <div class="metric-card">
+            <span class="lbl">Correlation (R²)</span>
+            <span class="val text-emerald">0.968</span>
+          </div>
+          <div class="metric-card">
+            <span class="lbl">Root Mean Sq. Error</span>
+            <span class="val">0.41 °C</span>
+          </div>
+          <div class="metric-card">
+            <span class="lbl">Mean Systematic Bias</span>
+            <span class="val text-cyan">+0.28 °C</span>
+          </div>
+          <div class="metric-card">
+            <span class="lbl">Overall Accuracy</span>
+            <span class="val text-highlight">97.2%</span>
+          </div>
+        </div>
+
+        <div class="modal-chart-section">
+          <h4>7-Day Model Forecast vs In-Situ Observation Convergence</h4>
+          <canvas id="compareModalCanvas" width="680" height="260"></canvas>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="closeCompareModalBtn2">Close Analytics</button>
+        <button class="btn btn-primary" id="downloadCompareCsvBtn"><i class="fa-solid fa-file-csv"></i> Download Validation Report</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. SENSORS DIRECTORY MODAL -->
+  <div class="modal-backdrop" id="sensorListModalBackdrop">
+    <div class="modal-dialog sensor-list-modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <i class="fa-solid fa-satellite-dish icon-accent"></i>
+          <div>
+            <h3>Global & Regional In-Situ Sensor Network</h3>
+            <span class="modal-subtitle">25 Active Telemetry Stations (Argo, OMNI, RAMA, Vessels)</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeSensorListModalBtn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="sensor-table-wrapper">
+          <table class="sensor-table" id="sensorDirectoryTable">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Station ID / Name</th>
+                <th>Region</th>
+                <th>Coordinates</th>
+                <th>Temp</th>
+                <th>Salinity</th>
+                <th>Depth</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="sensorTableBody">
+              <!-- Dynamically populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. NOTIFICATIONS & ALERTS MODAL -->
+  <div class="modal-backdrop" id="notificationsModalBackdrop">
+    <div class="modal-dialog notifications-modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <i class="fa-solid fa-bell icon-accent"></i>
+          <div>
+            <h3>MoES Ocean Risk & In-Situ Alerts</h3>
+            <span class="modal-subtitle">Automated Real-Time Telemetry Warnings</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeNotificationsModalBtn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" id="notificationsList">
+        <!-- Rendered via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Main JavaScript Logic -->
+  <script src="script.js"></script>
+</body>
+</html>
