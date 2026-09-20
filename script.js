@@ -751,7 +751,12 @@ const AppState = {
   isAutoRotating: false,
   showCurrents: true,
   showMarineLayer: true,
-  activeGraphTab: "temperature"
+  activeGraphTab: "temperature",
+  currentViewMode: "3d", // "3d" | "satellite"
+  googleMapLoaded: false,
+  googleMapType: "hybrid",
+  showMapSensors: true,
+  showMapAnomalies: true
 };
 
 // ==========================================================================
@@ -1273,6 +1278,11 @@ function flyToLocation(lat, lon, targetDistance = 28, duration = 1200) {
   isAnimatingCamera = true;
   controls.enabled = false;
 
+  // Synchronize Google Maps camera position
+  if (googleMap) {
+    googleMap.panTo({ lat: lat, lng: lon });
+  }
+
   function updateFlyTo(now) {
     const elapsed = now - startTime;
     const progress = Math.min(elapsed / duration, 1.0);
@@ -1443,6 +1453,462 @@ function onCanvasClick(event) {
 }
 
 // ==========================================================================
+// 3.5. GOOGLE MAPS SATELLITE GIS & IN-SITU SENSOR TELEMETRY ENGINE
+// ==========================================================================
+
+let googleMap = null;
+let modalGoogleMap = null;
+let modalGoogleMarker = null;
+let gmapSensorMarkers = [];
+let gmapAnomalyCircles = [];
+let gmapActiveInfoWindow = null;
+
+const DARK_OCEAN_STYLE = [
+  { elementType: "geometry", stylers: [{ color: "#051329" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#051329" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#748ca5" }] },
+  {
+    featureType: "administrative.locality",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#00f2fe" }]
+  },
+  {
+    featureType: "administrative.country",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#0f3366" }]
+  },
+  {
+    featureType: "poi",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "road",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "transit",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [{ color: "#020b18" }]
+  },
+  {
+    featureType: "water",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#00c8ff" }]
+  },
+  {
+    featureType: "water",
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#020b18" }]
+  }
+];
+
+/**
+ * Initializes Google Maps Satellite GIS View
+ */
+function initGoogleMap() {
+  if (typeof google === "undefined" || !google.maps) {
+    console.warn("Google Maps JavaScript API not ready yet.");
+    return;
+  }
+
+  const mapElem = document.getElementById("googleMapContainer");
+  if (!mapElem) return;
+
+  const currentRegion = OCEAN_REGIONS[AppState.currentOceanKey] || OCEAN_REGIONS.bay_of_bengal;
+  const initialCenter = { lat: currentRegion.lat, lng: currentRegion.lon };
+
+  try {
+    googleMap = new google.maps.Map(mapElem, {
+      center: initialCenter,
+      zoom: 5,
+      mapTypeId: google.maps.MapTypeId.HYBRID,
+      disableDefaultUI: true,
+      zoomControl: true,
+      zoomControlOptions: {
+        position: google.maps.ControlPosition.RIGHT_BOTTOM
+      },
+      scaleControl: true,
+      streetViewControl: false,
+      rotateControl: true,
+      fullscreenControl: false,
+      backgroundColor: "#020712",
+      minZoom: 2,
+      maxZoom: 18
+    });
+
+    AppState.googleMapLoaded = true;
+
+    // Add floating custom GIS control toolbar
+    addGoogleMapCustomControls();
+
+    // Render all 25+ in-situ sensors on Google Maps
+    renderGoogleMapSensors();
+
+    // Render marine heatwave anomaly zones
+    renderGoogleMapAnomalies();
+
+    // Coordinate crosshair tracking
+    googleMap.addListener("mousemove", (e) => {
+      if (e.latLng && AppState.currentViewMode !== "3d") {
+        const lat = e.latLng.lat();
+        const lng = e.latLng.lng();
+        const hudCoords = document.getElementById("hudCoords");
+        if (hudCoords) {
+          hudCoords.textContent = `${Math.abs(lat).toFixed(2)}° ${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lng).toFixed(2)}° ${lng >= 0 ? 'E' : 'W'} • Google Satellite GIS`;
+        }
+      }
+    });
+
+    // Close active InfoWindow on map click
+    googleMap.addListener("click", () => {
+      if (gmapActiveInfoWindow) {
+        gmapActiveInfoWindow.close();
+        gmapActiveInfoWindow = null;
+      }
+    });
+  } catch (err) {
+    console.error("Failed to initialize Google Map:", err);
+  }
+}
+
+/**
+ * Floating GIS toolbar for Google Maps
+ */
+function addGoogleMapCustomControls() {
+  if (!googleMap) return;
+
+  const controlDiv = document.createElement("div");
+  controlDiv.className = "gmap-floating-toolbar";
+  controlDiv.innerHTML = `
+    <div class="gmap-pill-group">
+      <button class="gmap-pill-btn active" data-maptype="hybrid" title="High-Resolution Satellite Imagery with Labels">
+        <i class="fa-solid fa-satellite"></i> <span>Hybrid</span>
+      </button>
+      <button class="gmap-pill-btn" data-maptype="satellite" title="Pure Satellite Ocean View">
+        <i class="fa-solid fa-earth-americas"></i> <span>Satellite</span>
+      </button>
+      <button class="gmap-pill-btn" data-maptype="dark" title="MoES Dark Ocean Bathymetric Theme">
+        <i class="fa-solid fa-water"></i> <span>Dark Ocean GIS</span>
+      </button>
+      <button class="gmap-pill-btn" data-maptype="terrain" title="Topographic & Coastal Bathymetry">
+        <i class="fa-solid fa-mountain"></i> <span>Terrain</span>
+      </button>
+    </div>
+    <div class="gmap-pill-group">
+      <button class="gmap-pill-btn active" id="gmapToggleSensorsBtn" title="Toggle In-Situ Sensor Stations">
+        <i class="fa-solid fa-satellite-dish"></i> <span>In-Situ Sensors (25+)</span>
+      </button>
+      <button class="gmap-pill-btn active" id="gmapToggleAnomaliesBtn" title="Toggle Thermal Anomaly Rings">
+        <i class="fa-solid fa-triangle-exclamation"></i> <span>Anomalies</span>
+      </button>
+    </div>
+  `;
+
+  googleMap.controls[google.maps.ControlPosition.TOP_LEFT].push(controlDiv);
+
+  // Map type switcher
+  controlDiv.querySelectorAll("[data-maptype]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      controlDiv.querySelectorAll("[data-maptype]").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const type = btn.getAttribute("data-maptype");
+      AppState.googleMapType = type;
+
+      if (type === "dark") {
+        googleMap.setMapTypeId("roadmap");
+        googleMap.setOptions({ styles: DARK_OCEAN_STYLE });
+      } else {
+        googleMap.setOptions({ styles: [] });
+        if (type === "hybrid") googleMap.setMapTypeId(google.maps.MapTypeId.HYBRID);
+        else if (type === "satellite") googleMap.setMapTypeId(google.maps.MapTypeId.SATELLITE);
+        else if (type === "terrain") googleMap.setMapTypeId(google.maps.MapTypeId.TERRAIN);
+      }
+    });
+  });
+
+  // Toggle in-situ sensors
+  const sensorsBtn = controlDiv.querySelector("#gmapToggleSensorsBtn");
+  sensorsBtn.addEventListener("click", () => {
+    AppState.showMapSensors = !AppState.showMapSensors;
+    sensorsBtn.classList.toggle("active", AppState.showMapSensors);
+    gmapSensorMarkers.forEach(m => m.setMap(AppState.showMapSensors ? googleMap : null));
+    showToast(`In-Situ Sensors ${AppState.showMapSensors ? 'Enabled' : 'Hidden'} on Google Map`, "success");
+  });
+
+  // Toggle anomalies
+  const anomBtn = controlDiv.querySelector("#gmapToggleAnomaliesBtn");
+  anomBtn.addEventListener("click", () => {
+    AppState.showMapAnomalies = !AppState.showMapAnomalies;
+    anomBtn.classList.toggle("active", AppState.showMapAnomalies);
+    gmapAnomalyCircles.forEach(c => c.setMap(AppState.showMapAnomalies ? googleMap : null));
+    showToast(`Ocean Anomalies ${AppState.showMapAnomalies ? 'Enabled' : 'Hidden'} on Google Map`, "alert");
+  });
+}
+
+/**
+ * Returns SVG Pin Icon definition based on sensor type
+ */
+function getSensorMarkerIcon(type) {
+  if (type === "buoy") {
+    // Moored Ocean Buoy
+    return {
+      url: "data:image/svg+xml;utf-8," + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+          <circle cx="16" cy="16" r="14" fill="#04152a" stroke="#00f2fe" stroke-width="2.5"/>
+          <circle cx="16" cy="16" r="6" fill="#00f2fe"/>
+          <path d="M16 4 L16 10 M16 22 L16 28 M4 16 L10 16 M22 16 L28 16" stroke="#00f2fe" stroke-width="1.5"/>
+        </svg>
+      `),
+      scaledSize: new google.maps.Size(32, 32),
+      anchor: new google.maps.Point(16, 16)
+    };
+  } else if (type === "argo") {
+    // Argo Profiling Float
+    return {
+      url: "data:image/svg+xml;utf-8," + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+          <circle cx="16" cy="16" r="13" fill="#03254c" stroke="#0099ff" stroke-width="2.5"/>
+          <polygon points="16,7 24,23 8,23" fill="#00f2fe"/>
+          <circle cx="16" cy="18" r="3" fill="#ffffff"/>
+        </svg>
+      `),
+      scaledSize: new google.maps.Size(30, 30),
+      anchor: new google.maps.Point(15, 15)
+    };
+  } else if (type === "ship") {
+    // Research Vessel
+    return {
+      url: "data:image/svg+xml;utf-8," + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">
+          <circle cx="17" cy="17" r="14" fill="#06231d" stroke="#00e676" stroke-width="2.5"/>
+          <path d="M9 20 L25 20 L22 25 L12 25 Z" fill="#00e676"/>
+          <rect x="15" y="11" width="4" height="9" fill="#ffffff"/>
+        </svg>
+      `),
+      scaledSize: new google.maps.Size(32, 32),
+      anchor: new google.maps.Point(16, 16)
+    };
+  } else {
+    // Coastal Observatory / Radar
+    return {
+      url: "data:image/svg+xml;utf-8," + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+          <circle cx="16" cy="16" r="13" fill="#261705" stroke="#ffd166" stroke-width="2.5"/>
+          <circle cx="16" cy="16" r="6" fill="#ffd166"/>
+          <path d="M11 25 L21 25 M16 25 L16 16" stroke="#ffffff" stroke-width="2"/>
+        </svg>
+      `),
+      scaledSize: new google.maps.Size(30, 30),
+      anchor: new google.maps.Point(15, 15)
+    };
+  }
+}
+
+/**
+ * Plots all in-situ sensors on Google Maps with custom markers and InfoWindows
+ */
+function renderGoogleMapSensors() {
+  if (!googleMap) return;
+
+  // Clear existing
+  gmapSensorMarkers.forEach(m => m.setMap(null));
+  gmapSensorMarkers = [];
+
+  SENSORS_DATA.forEach(sensor => {
+    const marker = new google.maps.Marker({
+      position: { lat: sensor.lat, lng: sensor.lon },
+      map: googleMap,
+      title: `${sensor.name} (${sensor.id})`,
+      icon: getSensorMarkerIcon(sensor.type)
+    });
+
+    const infoWindowContent = `
+      <div class="gmap-iw-card">
+        <div class="gmap-iw-header">
+          <div class="gmap-iw-title">${sensor.name}</div>
+          <span class="gmap-iw-tag">${sensor.typeLabel}</span>
+        </div>
+        <div class="gmap-iw-body">
+          <div class="gmap-iw-stat">
+            <div class="gmap-iw-stat-lbl">In-Situ Temp</div>
+            <div class="gmap-iw-stat-val text-cyan">${sensor.temp.toFixed(1)}°C</div>
+          </div>
+          <div class="gmap-iw-stat">
+            <div class="gmap-iw-stat-lbl">Salinity</div>
+            <div class="gmap-iw-stat-val">${sensor.salinity.toFixed(1)} PSU</div>
+          </div>
+          <div class="gmap-iw-stat">
+            <div class="gmap-iw-stat-lbl">Depth Layer</div>
+            <div class="gmap-iw-stat-val">${sensor.depth === 0 ? 'Surface (0m)' : sensor.depth + 'm'}</div>
+          </div>
+          <div class="gmap-iw-stat">
+            <div class="gmap-iw-stat-lbl">QC Status</div>
+            <div class="gmap-iw-stat-val text-emerald">${sensor.qc || 'Level 1 Pass'}</div>
+          </div>
+        </div>
+        <button class="gmap-iw-btn" onclick="window.openSensorDiagnostics('${sensor.id}')">
+          <i class="fa-solid fa-chart-line"></i> Full Diagnostics & Profile
+        </button>
+      </div>
+    `;
+
+    const infoWindow = new google.maps.InfoWindow({
+      content: infoWindowContent
+    });
+
+    marker.addListener("click", () => {
+      if (gmapActiveInfoWindow) {
+        gmapActiveInfoWindow.close();
+      }
+      infoWindow.open(googleMap, marker);
+      gmapActiveInfoWindow = infoWindow;
+
+      AppState.selectedSensor = sensor;
+      updateModelVsObservationCard();
+      drawOceanProfileChart();
+    });
+
+    gmapSensorMarkers.push(marker);
+  });
+}
+
+/**
+ * Global helper called from InfoWindow button
+ */
+window.openSensorDiagnostics = function(sensorId) {
+  const sensor = SENSORS_DATA.find(s => s.id === sensorId);
+  if (sensor) {
+    if (gmapActiveInfoWindow) {
+      gmapActiveInfoWindow.close();
+      gmapActiveInfoWindow = null;
+    }
+    openSensorModal(sensor);
+  }
+};
+
+/**
+ * Plots Marine Heatwave Anomaly Alert Circles on Google Maps
+ */
+function renderGoogleMapAnomalies() {
+  if (!googleMap) return;
+
+  gmapAnomalyCircles.forEach(c => c.setMap(null));
+  gmapAnomalyCircles = [];
+
+  ANOMALIES_DATA.forEach(anom => {
+    const isHigh = anom.severity === "HIGH";
+    const color = isHigh ? "#ff5252" : "#ffd166";
+
+    const circle = new google.maps.Circle({
+      strokeColor: color,
+      strokeOpacity: 0.85,
+      strokeWeight: 2,
+      fillColor: color,
+      fillOpacity: 0.22,
+      map: googleMap,
+      center: { lat: anom.lat, lng: anom.lon },
+      radius: isHigh ? 380000 : 250000
+    });
+
+    circle.addListener("click", () => {
+      selectOceanRegion(anom.locationKey);
+      showToast(`Inspecting Anomaly: ${anom.name} (${anom.deltaTemp})`, "alert");
+    });
+
+    gmapAnomalyCircles.push(circle);
+  });
+}
+
+/**
+ * Switches View Mode between 3D Globe and Satellite GIS
+ */
+function setViewMode(mode) {
+  AppState.currentViewMode = mode;
+  const container = document.getElementById("canvasContainer");
+  if (!container) return;
+
+  container.classList.remove("mode-3d", "mode-satellite");
+  container.classList.add(`mode-${mode}`);
+
+  // Update HUD View Mode Switcher Pills
+  document.querySelectorAll(".view-mode-pill").forEach(pill => {
+    pill.classList.toggle("active", pill.getAttribute("data-mode") === mode);
+  });
+
+  // Update Nav Links
+  const navDash = document.getElementById("navDashboardBtn");
+  const navSat = document.getElementById("navSatelliteBtn");
+  if (navDash) navDash.classList.toggle("active", mode === "3d");
+  if (navSat) navSat.classList.toggle("active", mode === "satellite");
+
+  // Re-adjust Three.js Canvas & Google Map Viewports
+  setTimeout(() => {
+    if (renderer && camera) {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+
+    if (googleMap) {
+      google.maps.event.trigger(googleMap, "resize");
+      const currentReg = OCEAN_REGIONS[AppState.currentOceanKey] || OCEAN_REGIONS.bay_of_bengal;
+      googleMap.setCenter({ lat: currentReg.lat, lng: currentReg.lon });
+    }
+  }, 120);
+
+  const modeName = mode === "3d" ? "3D Digital Twin Globe" : "Google Satellite GIS";
+  showToast(`View switched to ${modeName}`, "success");
+}
+
+/**
+ * Updates the high-resolution Google Satellite map inside the Sensor Modal
+ */
+function updateModalSensorMap(sensor) {
+  setTimeout(() => {
+    const mapElem = document.getElementById("modalSensorMap");
+    if (!mapElem || typeof google === "undefined" || !google.maps) return;
+
+    const sensorPos = { lat: sensor.lat, lng: sensor.lon };
+
+    if (!modalGoogleMap) {
+      modalGoogleMap = new google.maps.Map(mapElem, {
+        center: sensorPos,
+        zoom: 7,
+        mapTypeId: google.maps.MapTypeId.HYBRID,
+        disableDefaultUI: true,
+        zoomControl: true,
+        scaleControl: true,
+        backgroundColor: "#020712"
+      });
+
+      modalGoogleMarker = new google.maps.Marker({
+        position: sensorPos,
+        map: modalGoogleMap,
+        title: sensor.name,
+        icon: getSensorMarkerIcon(sensor.type),
+        animation: google.maps.Animation.DROP
+      });
+    } else {
+      google.maps.event.trigger(modalGoogleMap, "resize");
+      modalGoogleMap.setCenter(sensorPos);
+      modalGoogleMap.setZoom(7);
+
+      if (modalGoogleMarker) {
+        modalGoogleMarker.setPosition(sensorPos);
+        modalGoogleMarker.setTitle(sensor.name);
+        modalGoogleMarker.setIcon(getSensorMarkerIcon(sensor.type));
+      }
+    }
+  }, 150);
+}
+
+// ==========================================================================
 // 4. SCIENTIFIC CALCULATIONS & UI DATA SYNC
 // ==========================================================================
 
@@ -1458,11 +1924,18 @@ function selectOceanRegion(regionKey) {
   // 1. Smoothly fly 3D Camera to the region
   flyToLocation(region.lat, region.lon, region.zoom * 10, 1100);
 
-  // 2. Update HUD Overlay
+  // 2. Synchronize Google Maps camera position
+  if (googleMap) {
+    const targetZoom = Math.min(Math.max(Math.round(region.zoom * 1.8), 3), 9);
+    googleMap.panTo({ lat: region.lat, lng: region.lon });
+    googleMap.setZoom(targetZoom);
+  }
+
+  // 3. Update HUD Overlay
   document.getElementById("hudRegionName").textContent = `${region.name} • ${region.subname}`;
   document.getElementById("hudCoords").textContent = `${Math.abs(region.lat).toFixed(2)}° ${region.lat >= 0 ? 'N' : 'S'}, ${Math.abs(region.lon).toFixed(2)}° ${region.lon >= 0 ? 'E' : 'W'} • Alt: ${(region.zoom * 850).toFixed(0)} km`;
 
-  // 3. Update Global Ocean Tabs & Sea Tags active states
+  // 4. Update Global Ocean Tabs & Sea Tags active states
   document.querySelectorAll(".ocean-tab").forEach(tab => {
     tab.classList.toggle("active", tab.getAttribute("data-ocean") === regionKey);
   });
@@ -1470,7 +1943,7 @@ function selectOceanRegion(regionKey) {
     tag.classList.toggle("active", tag.getAttribute("data-location") === regionKey);
   });
 
-  // 4. Select representative sensor for this region
+  // 5. Select representative sensor for this region
   const regionalSensor = SENSORS_DATA.find(s => s.region === regionKey) || SENSORS_DATA[0];
   AppState.selectedSensor = regionalSensor;
 
@@ -2059,8 +2532,13 @@ function setupEventListeners() {
       document.querySelectorAll(".nav-link").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       const view = btn.getAttribute("data-view");
-      if (view === "explorer") {
+      if (view === "dashboard") {
+        setViewMode("3d");
+      } else if (view === "explorer") {
         selectOceanRegion("indian");
+        setViewMode("3d");
+      } else if (view === "satellite") {
+        setViewMode("satellite");
       } else if (view === "observations") {
         openSensorListModal();
       } else if (view === "analytics") {
@@ -2197,6 +2675,23 @@ function setupEventListeners() {
     e.currentTarget.classList.toggle("active", AppState.showCurrents);
   });
 
+  // Map Camera Toolbar Button
+  const camMapBtn = document.getElementById("camMapToggleBtn");
+  if (camMapBtn) {
+    camMapBtn.addEventListener("click", () => {
+      const nextMode = AppState.currentViewMode === "satellite" ? "3d" : "satellite";
+      setViewMode(nextMode);
+    });
+  }
+
+  // HUD View Mode Switcher Pills (3D / Satellite)
+  document.querySelectorAll(".view-mode-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      const mode = pill.getAttribute("data-mode");
+      setViewMode(mode);
+    });
+  });
+
   // Global Location Search
   setupSearchAutocomplete();
 
@@ -2281,29 +2776,38 @@ function setupSearchAutocomplete() {
 
   const searchableItems = [
     // Oceans
-    { name: "Indian Ocean", key: "indian", type: "Ocean", lat: 5.0, lon: 78.0 },
-    { name: "Pacific Ocean", key: "pacific", type: "Ocean", lat: 0.0, lon: 160.0 },
-    { name: "Atlantic Ocean", key: "atlantic", type: "Ocean", lat: 18.0, lon: -40.0 },
-    { name: "Arctic Ocean", key: "arctic", type: "Ocean", lat: 78.0, lon: 10.0 },
-    { name: "Southern Ocean", key: "southern", type: "Ocean", lat: -55.0, lon: 30.0 },
+    { name: "Indian Ocean", key: "indian", type: "Ocean Basin", lat: 5.0, lon: 78.0 },
+    { name: "Pacific Ocean", key: "pacific", type: "Ocean Basin", lat: 0.0, lon: 160.0 },
+    { name: "Atlantic Ocean", key: "atlantic", type: "Ocean Basin", lat: 18.0, lon: -40.0 },
+    { name: "Arctic Ocean", key: "arctic", type: "Ocean Basin", lat: 78.0, lon: 10.0 },
+    { name: "Southern Ocean", key: "southern", type: "Ocean Basin", lat: -55.0, lon: 30.0 },
     // Key Seas
-    { name: "Bay of Bengal", key: "bay_of_bengal", type: "Sea", lat: 14.5, lon: 87.5 },
-    { name: "Arabian Sea", key: "arabian_sea", type: "Sea", lat: 16.0, lon: 66.0 },
-    { name: "Andaman Sea", key: "andaman_sea", type: "Sea", lat: 10.5, lon: 94.5 },
-    { name: "South China Sea", key: "south_china_sea", type: "Sea", lat: 15.0, lon: 114.0 },
-    { name: "Mediterranean Sea", key: "mediterranean", type: "Sea", lat: 35.0, lon: 18.0 },
+    { name: "Bay of Bengal", key: "bay_of_bengal", type: "Sea Basin", lat: 14.5, lon: 87.5 },
+    { name: "Arabian Sea", key: "arabian_sea", type: "Sea Basin", lat: 16.0, lon: 66.0 },
+    { name: "Andaman Sea", key: "andaman_sea", type: "Sea Basin", lat: 10.5, lon: 94.5 },
+    { name: "South China Sea", key: "south_china_sea", type: "Sea Basin", lat: 15.0, lon: 114.0 },
+    { name: "Mediterranean Sea", key: "mediterranean", type: "Sea Basin", lat: 35.0, lon: 18.0 },
     // Major Coastal Cities & Ports
-    { name: "Chennai, India", key: "bay_of_bengal", type: "Coastal City", lat: 13.08, lon: 80.28 },
-    { name: "Visakhapatnam, India", key: "bay_of_bengal", type: "Coastal City", lat: 17.68, lon: 83.22 },
-    { name: "Kochi, India", key: "arabian_sea", type: "Coastal City", lat: 9.93, lon: 76.26 },
-    { name: "Mumbai, India", key: "arabian_sea", type: "Coastal City", lat: 18.92, lon: 72.83 },
-    { name: "Singapore", key: "south_china_sea", type: "Port City", lat: 1.35, lon: 103.82 },
-    { name: "Tokyo, Japan", key: "pacific", type: "Port City", lat: 35.68, lon: 139.76 },
-    { name: "New York, USA", key: "atlantic", type: "Coastal City", lat: 40.71, lon: -74.00 },
-    { name: "London, UK", key: "atlantic", type: "Port City", lat: 51.50, lon: -0.12 },
-    { name: "Sydney, Australia", key: "pacific", type: "Coastal City", lat: -33.86, lon: 151.20 },
-    { name: "Cape Town, South Africa", key: "atlantic", type: "Coastal City", lat: -33.92, lon: 18.42 }
+    { name: "Chennai Coast, India", key: "bay_of_bengal", type: "Coastal Port", lat: 13.08, lon: 80.28 },
+    { name: "Visakhapatnam, India", key: "bay_of_bengal", type: "Coastal Port", lat: 17.68, lon: 83.22 },
+    { name: "Kochi Port, India", key: "arabian_sea", type: "Coastal Port", lat: 9.93, lon: 76.26 },
+    { name: "Mumbai Port, India", key: "arabian_sea", type: "Coastal Port", lat: 18.92, lon: 72.83 },
+    { name: "Port Blair, Andamans", key: "andaman_sea", type: "Island Station", lat: 11.62, lon: 92.72 },
+    { name: "Singapore Strait", key: "south_china_sea", type: "Strait / Port", lat: 1.35, lon: 103.82 },
+    { name: "Tokyo Bay, Japan", key: "pacific", type: "Bay / Port", lat: 35.68, lon: 139.76 }
   ];
+
+  // Index all in-situ sensors dynamically
+  SENSORS_DATA.forEach(s => {
+    searchableItems.push({
+      name: `${s.name} (${s.id})`,
+      key: s.region,
+      type: `In-Situ ${s.typeLabel}`,
+      lat: s.lat,
+      lon: s.lon,
+      sensorId: s.id
+    });
+  });
 
   searchInput.addEventListener("input", (e) => {
     const val = e.target.value.trim().toLowerCase();
@@ -2314,16 +2818,24 @@ function setupSearchAutocomplete() {
       return;
     }
 
-    const matches = searchableItems.filter(item => item.name.toLowerCase().includes(val));
+    const matches = searchableItems.filter(item => 
+      item.name.toLowerCase().includes(val) || 
+      item.type.toLowerCase().includes(val) ||
+      (item.sensorId && item.sensorId.toLowerCase().includes(val))
+    ).slice(0, 8);
 
     if (matches.length === 0) {
-      suggestionsBox.innerHTML = `<div style="padding:10px;color:#8b9bb4;font-size:11px;">No matching locations found.</div>`;
+      suggestionsBox.innerHTML = `
+        <div style="padding:10px;color:#8b9bb4;font-size:11px;">
+          Press <strong>Enter</strong> to search globally via Google Maps Geocoder.
+        </div>
+      `;
       suggestionsBox.style.display = "block";
       return;
     }
 
     suggestionsBox.innerHTML = matches.map(m => `
-      <div class="search-suggestion-item" data-lat="${m.lat}" data-lon="${m.lon}" data-key="${m.key}">
+      <div class="search-suggestion-item" data-lat="${m.lat}" data-lon="${m.lon}" data-key="${m.key}" ${m.sensorId ? `data-sensor-id="${m.sensorId}"` : ''}>
         <div class="item-title"><i class="fa-solid fa-location-dot" style="color:#00f2fe"></i> ${m.name}</div>
         <div class="item-type">${m.type}</div>
       </div>
@@ -2337,19 +2849,90 @@ function setupSearchAutocomplete() {
         const lat = parseFloat(item.getAttribute("data-lat"));
         const lon = parseFloat(item.getAttribute("data-lon"));
         const key = item.getAttribute("data-key");
+        const sId = item.getAttribute("data-sensor-id");
 
         searchInput.value = item.querySelector(".item-title").textContent.trim();
         suggestionsBox.style.display = "none";
 
-        if (OCEAN_REGIONS[key]) {
+        if (sId) {
+          const sensor = SENSORS_DATA.find(s => s.id === sId);
+          if (sensor) {
+            openSensorModal(sensor);
+            flyToLocation(sensor.lat, sensor.lon, 20, 1000);
+            if (googleMap) {
+              googleMap.panTo({ lat: sensor.lat, lng: sensor.lon });
+              googleMap.setZoom(8);
+            }
+          }
+        } else if (OCEAN_REGIONS[key]) {
           selectOceanRegion(key);
         } else {
           flyToLocation(lat, lon, 24, 1100);
+          if (googleMap) {
+            googleMap.panTo({ lat, lng: lon });
+            googleMap.setZoom(6);
+          }
         }
 
         showToast(`Navigated to ${searchInput.value}`, "success");
       });
     });
+  });
+
+  // Handle Enter key for Global Google Geocoding
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const val = searchInput.value.trim();
+      if (!val) return;
+
+      // Check local match first
+      const localMatch = searchableItems.find(item => item.name.toLowerCase().includes(val.toLowerCase()));
+      if (localMatch) {
+        if (localMatch.sensorId) {
+          const sensor = SENSORS_DATA.find(s => s.id === localMatch.sensorId);
+          if (sensor) openSensorModal(sensor);
+        } else if (OCEAN_REGIONS[localMatch.key]) {
+          selectOceanRegion(localMatch.key);
+        } else {
+          flyToLocation(localMatch.lat, localMatch.lon, 24, 1100);
+          if (googleMap) {
+            googleMap.panTo({ lat: localMatch.lat, lng: localMatch.lon });
+            googleMap.setZoom(6);
+          }
+        }
+        suggestionsBox.style.display = "none";
+        showToast(`Navigated to ${localMatch.name}`, "success");
+        return;
+      }
+
+      // Query Google Maps Geocoder
+      if (typeof google !== "undefined" && google.maps && google.maps.Geocoder) {
+        const geocoder = new google.maps.Geocoder();
+        geocoder.geocode({ address: val }, (results, status) => {
+          if (status === "OK" && results && results[0]) {
+            const loc = results[0].geometry.location;
+            const lat = loc.lat();
+            const lon = loc.lng();
+            const formatted = results[0].formatted_address;
+
+            flyToLocation(lat, lon, 24, 1100);
+            if (googleMap) {
+              googleMap.panTo({ lat, lng: lon });
+              googleMap.setZoom(7);
+            }
+
+            document.getElementById("hudRegionName").textContent = formatted;
+            document.getElementById("hudCoords").textContent = `${Math.abs(lat).toFixed(2)}° ${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(2)}° ${lon >= 0 ? 'E' : 'W'} • Google Maps GIS`;
+
+            suggestionsBox.style.display = "none";
+            showToast(`Navigated to ${formatted}`, "success");
+          } else {
+            showToast(`Location "${val}" not found in Ocean database.`, "alert");
+          }
+        });
+      }
+    }
   });
 
   clearBtn.addEventListener("click", () => {
@@ -2389,9 +2972,16 @@ function openSensorModal(sensor) {
   // Draw Vertical CTD Sensor Graph
   drawSensorModalCTD(sensor);
 
+  // Update Real-World Google Satellite Telemetry in Modal
+  updateModalSensorMap(sensor);
+
   document.getElementById("modalFlyToSensorBtn").onclick = () => {
     closeSensorModal();
     flyToLocation(sensor.lat, sensor.lon, 20, 1000);
+    if (googleMap) {
+      googleMap.panTo({ lat: sensor.lat, lng: sensor.lon });
+      googleMap.setZoom(8);
+    }
     showToast(`Focused on ${sensor.id}`, "success");
   };
 }
@@ -2503,6 +3093,7 @@ function escapeHTML(str) {
 
 document.addEventListener("DOMContentLoaded", () => {
   initThreeGlobe();
+  initGoogleMap();
   setupEventListeners();
   selectOceanRegion("bay_of_bengal");
 });

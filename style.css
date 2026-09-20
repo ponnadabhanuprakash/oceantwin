@@ -573,6 +573,37 @@ a:hover {
   width: 100%;
   height: 100%;
   background: radial-gradient(circle at center, #071933 0%, #020712 75%, #000208 100%);
+  overflow: hidden;
+}
+
+/* Google Maps Main Container */
+.google-map-view {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #020712;
+  z-index: 1;
+}
+
+/* View Modes on Canvas Container */
+.canvas-container.mode-3d #globeCanvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+.canvas-container.mode-3d #googleMapContainer {
+  display: none !important;
+}
+
+.canvas-container.mode-satellite #globeCanvas {
+  display: none !important;
+}
+.canvas-container.mode-satellite #googleMapContainer {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 2;
 }
 
 #globeCanvas {
@@ -605,9 +636,56 @@ a:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   pointer-events: none;
   z-index: 50;
+}
+
+/* HUD View Mode Switcher */
+.hud-view-switcher {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(4, 13, 26, 0.88);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(0, 242, 254, 0.28);
+  border-radius: var(--radius-pill);
+  padding: 3px 5px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  pointer-events: auto;
+}
+
+.view-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 13px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.view-mode-pill i {
+  font-size: 12px;
+}
+
+.view-mode-pill:hover {
+  color: #fff;
+  background: rgba(0, 242, 254, 0.12);
+}
+
+.view-mode-pill.active {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(0, 98, 255, 0.85), rgba(0, 242, 254, 0.85));
+  border-color: rgba(0, 242, 254, 0.5);
+  box-shadow: 0 0 14px rgba(0, 242, 254, 0.4);
 }
 
 .hud-target-info {
@@ -690,10 +768,167 @@ a:hover {
   box-shadow: 0 0 10px var(--cyan-glow);
 }
 
-.cam-btn.active {
-  color: var(--cyan-accent);
-  border-color: var(--cyan-accent);
+/* Google Maps Custom Floating GIS Toolbar */
+.gmap-floating-toolbar {
+  position: absolute;
+  bottom: 24px;
+  left: calc(var(--panel-width) + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 40;
+  pointer-events: auto;
+}
+
+.gmap-pill-group {
+  background: rgba(4, 15, 33, 0.88);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(0, 242, 254, 0.25);
+  border-radius: var(--radius-md);
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.6);
+}
+
+.gmap-pill-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all var(--transition-fast);
+}
+
+.gmap-pill-btn:hover {
+  color: #fff;
   background: rgba(0, 242, 254, 0.12);
+}
+
+.gmap-pill-btn.active {
+  background: rgba(0, 242, 254, 0.22);
+  border-color: var(--cyan-accent);
+  color: var(--cyan-accent);
+  font-weight: 600;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+}
+
+/* Google Maps Dark Glassmorphic InfoWindow Styling */
+.gm-style .gm-style-iw-c {
+  background: rgba(4, 15, 33, 0.94) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(0, 242, 254, 0.35) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.85), 0 0 16px rgba(0, 242, 254, 0.25) !important;
+  padding: 12px !important;
+}
+
+.gm-style .gm-style-iw-tc::after {
+  background: rgba(4, 15, 33, 0.94) !important;
+  border-right: 1px solid rgba(0, 242, 254, 0.35) !important;
+  border-bottom: 1px solid rgba(0, 242, 254, 0.35) !important;
+}
+
+.gm-style .gm-style-iw-d {
+  overflow: hidden !important;
+  color: #e2e8f0;
+}
+
+.gm-style .gm-ui-hover-effect {
+  filter: invert(1);
+  top: 4px !important;
+  right: 4px !important;
+}
+
+.gmap-iw-card {
+  font-family: var(--font-ui);
+  width: 250px;
+  color: var(--text-main);
+}
+
+.gmap-iw-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 6px;
+}
+
+.gmap-iw-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.gmap-iw-tag {
+  font-size: 9.5px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 242, 254, 0.15);
+  color: var(--cyan-accent);
+  border: 1px solid rgba(0, 242, 254, 0.3);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.gmap-iw-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.gmap-iw-stat {
+  background: rgba(255, 255, 255, 0.04);
+  padding: 5px 7px;
+  border-radius: 6px;
+}
+
+.gmap-iw-stat-lbl {
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.gmap-iw-stat-val {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.gmap-iw-btn {
+  width: 100%;
+  padding: 6px 10px;
+  background: linear-gradient(135deg, rgba(0, 82, 212, 0.85), rgba(0, 242, 254, 0.85));
+  border: 1px solid rgba(0, 242, 254, 0.4);
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all var(--transition-fast);
+}
+
+.gmap-iw-btn:hover {
+  filter: brightness(1.15);
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.4);
 }
 
 /* Sensor Raycast Hover Tooltip */
@@ -2060,7 +2295,8 @@ input:checked + .slider:before {
 
 /* Sensor Detail Modal */
 .sensor-modal-dialog {
-  width: 600px;
+  width: 820px;
+  max-width: 95vw;
 }
 
 .sensor-type-icon {
@@ -2113,17 +2349,71 @@ input:checked + .slider:before {
   font-size: 10.5px;
 }
 
+/* Modal Multi-Sections: CTD Canvas Graph & Live Google Satellite Map */
+.modal-multi-sections-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
 .modal-chart-section {
   background: rgba(4, 13, 26, 0.6);
   border-radius: var(--radius-md);
   padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-chart-section h4 {
   font-size: 12px;
   color: var(--text-muted);
   margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modal-map-section {
+  background: rgba(4, 13, 26, 0.6);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.modal-section-header h4 {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.satellite-badge {
+  font-size: 9.5px;
+  color: var(--emerald);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.modal-sensor-map {
+  width: 100%;
+  height: 220px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid rgba(0, 242, 254, 0.25);
+  background: #020712;
 }
 
 /* Compare Analytics Modal */

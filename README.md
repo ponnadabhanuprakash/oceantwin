@@ -12,19 +12,20 @@
 
 **OceanTwin 360** is a state-of-the-art, web-based 3D scientific visualization digital twin engineered for the Ministry of Earth Sciences (MoES) and INCOIS (Indian National Centre for Ocean Information Services). The platform seamlessly integrates **high-resolution numerical ocean model outputs** (such as INCOIS ROMS, MOM, HYCOM) with real-time **in-situ observations** (Argo Profiling Floats, OMNI Moored Buoys, Research Vessels, and Coastal HF Radar / Tide Gauges).
 
-Built using **pure HTML5, CSS3, Vanilla JavaScript, and Three.js (via CDN)**, OceanTwin 360 runs out of the box with zero build steps or npm installations.
+Built using **HTML5, CSS3, Vanilla JavaScript, Three.js, and Google Maps JavaScript API**, OceanTwin 360 runs out of the box with zero build steps or npm installations.
 
 ---
 
 ## ✨ Key Features & Capabilities
 
-### 1. 🌍 Realistic 3D Global Ocean Explorer (Three.js)
-* **Photorealistic Planet Rendering:** High-resolution procedural Earth texture with detailed bathymetric ocean depth styling, landmasses, and polar ice caps.
-* **Specular Water Reflection:** Real-time specular shaders where sunlight reflects brilliantly off dynamic ocean surfaces.
-* **Atmospheric Fresnel Glow:** Radiant cyan-blue atmospheric rim halo shader simulating views from orbital satellites.
-* **Dynamic Ocean Current Flowlines:** Animated 3D particle streamlines running across major ocean circulation paths (Somali Current, Agulhas, Monsoon Drift, Kuroshio, Gulf Stream, Antarctic Circumpolar Current).
-* **3D Basin Labels & Markers:** Floating typography for oceans and animated pulsating beacon markers for in-situ sensors and anomaly zones.
-* **Interactive Camera Controls:** Mouse drag rotation, scroll zoom, spherical lerp fly-to transitions, and auto-rotation toggle.
+### 1. 🌍 Realistic 3D Global Ocean Explorer & 🛰️ Google Maps Satellite GIS
+* **Multi-Modal Visualizer:** Seamless 1-click switching between:
+  * **3D Digital Twin Globe (Three.js WebGL):** Photorealistic planetary visualization with specular sun glints, atmospheric Fresnel glow, dynamic particle ocean current streamlines, and depth stratification.
+  * **2D High-Resolution Satellite GIS (Google Maps):** Photorealistic satellite ocean tiles, hybrid coastal borders, topographic bathymetry, and a custom MoES **Dark Ocean Bathymetric GIS** theme.
+* **In-Situ Sensor Network on Google Maps:** All 25+ Argo floats, OMNI buoys, RAMA stations, MoES research vessels, and coastal radar observatories rendered with custom SVG pins and dark glassmorphic telemetry InfoWindows.
+* **Marine Anomaly Alert Zones:** Pulsing thermal warning circles highlighting heatwave centers directly on Google Maps.
+* **Sensor Modal Satellite Fix:** Real-world Google Satellite telemetry viewport inside the sensor inspection modal showing buoy deployment coordinates at sea.
+* **Synchronized Cross-Navigation:** Flying to any ocean basin, sea tag, or sensor coordinates smoothly animates both the 3D globe camera and Google Maps in sync.
 
 ### 2. 🔬 Model vs Real In-Situ Observation Comparator (Core SIH Feature)
 * **Real-Time Data Pairing:** Directly compares numerical ocean model predictions against in-situ sensor telemetry for any focused coordinate.
@@ -48,7 +49,7 @@ Built using **pure HTML5, CSS3, Vanilla JavaScript, and Three.js (via CDN)**, Oc
 
 ### 5. ⚠️ Ocean Anomaly Detection & Hotspots
 * **Marine Heatwave Alerts:** Identifies anomalous thermal zones (e.g., $+2.1^\circ\text{C}$ in Northern Bay of Bengal, $+3.2^\circ\text{C}$ in Arctic Beaufort Sea).
-* **Pulsing 3D Beacons:** Visual alert rings on the 3D globe highlighting active anomaly centers.
+* **Pulsing 3D Beacons & Map Rings:** Visual alert rings on both the 3D globe and Google Satellite GIS highlighting active anomaly centers.
 * **Explanatory Diagnostics:** Real-time scientific explanations of underlying meteorological/oceanographic drivers.
 
 ### 6. 🐟 Marine Ecosystem & Aquatic Impact Analysis
@@ -58,7 +59,7 @@ Built using **pure HTML5, CSS3, Vanilla JavaScript, and Three.js (via CDN)**, Oc
 
 ### 7. 🚨 Disaster Intelligence & Risk Monitor
 * **Real-Time Warning Feed:** High wave swell alerts ($3.8\,\text{m}-4.4\,\text{m}$ in Arabian Sea), cyclonic surge propagation, and positive Indian Ocean Dipole (IOD) events.
-* **One-Click Navigation:** Clicking any hazard fly-navigates the 3D globe directly to that coordinates.
+* **One-Click Navigation:** Clicking any hazard fly-navigates both the 3D globe and Google Maps directly to those coordinates.
 
 ### 8. 🤖 AI Ocean Assistant (Conversational NLP Widget)
 * **Domain-Specific AI Ocean Bot:** Embedded floating chatbot capable of answering questions regarding anomalies, sensor profiles, CTD data, and model bias.
@@ -74,6 +75,7 @@ Built using **pure HTML5, CSS3, Vanilla JavaScript, and Three.js (via CDN)**, Oc
 
 * **Frontend:** HTML5, CSS3 (Modern Dark Navy Glassmorphism & Custom Properties), Vanilla JavaScript (ES6+).
 * **3D Graphics:** [Three.js r128](https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js) and OrbitControls via CDN.
+* **Geospatial & Mapping:** Google Maps JavaScript API with Places, Visualization & Geometry libraries (Integrated API Key `AIzaSyAnV0-hft0h2toROE2gOrNyWyDs9CFvJhk`).
 * **Typography:** Space Grotesk, Inter, JetBrains Mono (Google Fonts).
 * **Icons:** FontAwesome 6.5.1 (via CDN).
 
@@ -83,7 +85,7 @@ Built using **pure HTML5, CSS3, Vanilla JavaScript, and Three.js (via CDN)**, Oc
 
 1. Navigate to the project folder:
    ```bash
-   cd "d:\bhanu prakash\website"
+   cd "c:\Users\bhanu\oceantwin"
    ```
 2. Double-click **`index.html`** or open it with any modern web browser (Chrome, Edge, Firefox, Safari).
 3. Alternatively, serve with a lightweight local server:
