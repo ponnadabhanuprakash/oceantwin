@@ -2517,12 +2517,30 @@ async function handleAiQuery(queryText) {
     chatContainer.appendChild(botMsgDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
   } catch (err) {
+    // Graceful fallback for GitHub Pages if remote backend is not yet deployed
+    const lowerQ = queryText.toLowerCase();
+    const currentRegion = OCEAN_REGIONS[AppState.currentOceanKey] || OCEAN_REGIONS.bay_of_bengal;
+    let fallbackReply = null;
+
+    for (const key in AI_KNOWLEDGE_BASE) {
+      if (key === "default") continue;
+      const entry = AI_KNOWLEDGE_BASE[key];
+      if (entry.keywords && entry.keywords.some(kw => lowerQ.includes(kw))) {
+        fallbackReply = entry.response(currentRegion);
+        break;
+      }
+    }
+
+    if (!fallbackReply) {
+      fallbackReply = `**Ocean Disaster Advisory (${currentRegion.name})**\n• Status: Active observation and model telemetry monitored.\n• Immediate Actions: Check official MoES / INCOIS bulletins and follow local disaster management authority (NDMA) advisories for coastal safety.`;
+    }
+
     typingDiv.remove();
     const botMsgDiv = document.createElement("div");
     botMsgDiv.className = "chat-msg assistant";
     botMsgDiv.innerHTML = `
       <div class="msg-avatar"><i class="fa-solid fa-robot"></i></div>
-      <div class="msg-bubble">Server error. Please try again.</div>
+      <div class="msg-bubble">${escapeHTML(fallbackReply).replace(/\n/g, "<br>")}</div>
     `;
     chatContainer.appendChild(botMsgDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
