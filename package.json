@@ -1,6 +1,6 @@
 {
   "name": "oceantwin-360",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Global 3D Ocean Digital Twin & In-Situ Observation Platform for MoES SIH26067",
   "main": "server.js",
   "scripts": {
@@ -15,5 +15,9 @@
     "incois"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
 }

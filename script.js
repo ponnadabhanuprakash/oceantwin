@@ -5,6 +5,9 @@
  * Tech Stack: HTML5, CSS3, Vanilla JavaScript, Three.js (via CDN)
  */
 
+// Backend URL for AI Chatbot API
+const BACKEND_URL = "http://localhost:8000"; // Replace with your deployed backend URL (e.g. https://oceantwin-backend.onrender.com)
+
 // ==========================================================================
 // 1. SCIENTIFIC MOCK DATASETS & CONSTANTS
 // ==========================================================================
@@ -2447,11 +2450,13 @@ const AI_KNOWLEDGE_BASE = {
   }
 };
 
-function handleAiQuery(queryText) {
+// Chat conversation history maintained for multi-turn session
+let chatHistory = [];
+
+async function handleAiQuery(queryText) {
   if (!queryText || !queryText.trim()) return;
 
   const chatContainer = document.getElementById("aiChatMessages");
-  const currentRegion = OCEAN_REGIONS[AppState.currentOceanKey] || OCEAN_REGIONS.bay_of_bengal;
 
   // Append User Message
   const userMsgDiv = document.createElement("div");
@@ -2479,37 +2484,47 @@ function handleAiQuery(queryText) {
   chatContainer.appendChild(typingDiv);
   chatContainer.scrollTop = chatContainer.scrollHeight;
 
-  // Simulate AI Thinking Delay
-  setTimeout(() => {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: queryText,
+        history: chatHistory
+      })
+    });
+
+    const data = await response.json();
+    const botReply = data.reply || "Server error. Please try again.";
+
+    // Maintain session history (last 10 turns)
+    chatHistory.push({ role: "user", content: queryText });
+    chatHistory.push({ role: "assistant", content: botReply });
+    if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
+
+    // Remove typing indicator & show reply using existing bot message styling
     typingDiv.remove();
-
-    // Match Query against Knowledge Base
-    const lowerQ = queryText.toLowerCase();
-    let responseText = null;
-
-    for (const key in AI_KNOWLEDGE_BASE) {
-      if (key === "default") continue;
-      const entry = AI_KNOWLEDGE_BASE[key];
-      if (entry.keywords.some(kw => lowerQ.includes(kw))) {
-        responseText = entry.response(currentRegion);
-        break;
-      }
-    }
-
-    if (!responseText) {
-      responseText = AI_KNOWLEDGE_BASE.default.response(currentRegion, queryText);
-    }
-
-    // Append Assistant Response
     const botMsgDiv = document.createElement("div");
     botMsgDiv.className = "chat-msg assistant";
     botMsgDiv.innerHTML = `
       <div class="msg-avatar"><i class="fa-solid fa-robot"></i></div>
-      <div class="msg-bubble">${responseText}</div>
+      <div class="msg-bubble">${escapeHTML(botReply).replace(/\n/g, "<br>")}</div>
     `;
     chatContainer.appendChild(botMsgDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
-  }, 650);
+  } catch (err) {
+    typingDiv.remove();
+    const botMsgDiv = document.createElement("div");
+    botMsgDiv.className = "chat-msg assistant";
+    botMsgDiv.innerHTML = `
+      <div class="msg-avatar"><i class="fa-solid fa-robot"></i></div>
+      <div class="msg-bubble">Server error. Please try again.</div>
+    `;
+    chatContainer.appendChild(botMsgDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
 }
 
 // ==========================================================================
