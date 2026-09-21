@@ -5,8 +5,10 @@
  * Tech Stack: HTML5, CSS3, Vanilla JavaScript, Three.js (via CDN)
  */
 
-// Backend URL for AI Chatbot API
-const BACKEND_URL = "http://localhost:8000"; // Replace with your deployed backend URL (e.g. https://oceantwin-backend.onrender.com)
+// Backend URL for AI Chatbot API (Auto-detects localhost vs production backend)
+const BACKEND_URL = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+  ? "http://localhost:8000"
+  : "https://oceantwin-backend.onrender.com";
 
 // ==========================================================================
 // 1. SCIENTIFIC MOCK DATASETS & CONSTANTS

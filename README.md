@@ -4,7 +4,8 @@
 **Problem Statement ID:** SIH26067 — Ministry of Earth Sciences (MoES)  
 **Title:** *“Develop a web-based interactive 3D visualization platform that integrates numerical ocean model outputs and in-situ observations.”*  
 
-**Tagline:** *“Explore. Compare. Understand the Ocean.”*
+**Tagline:** *“Explore. Compare. Understand the Ocean.”*  
+**Live Site (GitHub Pages):** [https://ponnadabhanuprakash.github.io/oceantwin/](https://ponnadabhanuprakash.github.io/oceantwin/)
 
 ---
 
@@ -81,22 +82,19 @@ Built using **HTML5, CSS3, Vanilla JavaScript, Three.js, and Google Maps JavaScr
 
 ---
 
-## 🚀 How to Run the Prototype
-
+## 🚀 How to Run the Platform
+ 
 1. Navigate to the project folder:
    ```bash
    cd "c:\Users\bhanu\oceantwin"
    ```
-2. Double-click **`index.html`** or open it with any modern web browser (Chrome, Edge, Firefox, Safari).
-3. Alternatively, serve with a lightweight local server:
+2. Run with Node.js & AI Backend:
    ```bash
-   npx serve .
-   ```
-   or in Python:
-   ```bash
-   python -m http.server 8000
+   npm install
+   npm start
    ```
    Open `http://localhost:8000` in your browser.
+3. Alternatively, open **`index.html`** directly in any modern browser.
 
 ---
 
