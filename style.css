@@ -306,10 +306,10 @@ a:hover {
 }
 
 .nav-link.active {
-  background: rgba(0, 242, 254, 0.15);
-  color: var(--cyan-accent);
-  font-weight: 600;
-  box-shadow: inset 0 0 12px rgba(0, 242, 254, 0.2);
+  background: var(--cyan-accent);
+  color: #040d1a;
+  font-weight: 700;
+  box-shadow: 0 0 14px var(--cyan-glow);
 }
 
 /* Nav Right Actions */
@@ -995,6 +995,7 @@ a:hover {
 
 .panel-right {
   right: 14px;
+  padding-bottom: 75px;
 }
 
 /* Glass Card Component */

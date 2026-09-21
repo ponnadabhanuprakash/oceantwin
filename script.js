@@ -33,6 +33,9 @@ const OCEAN_REGIONS = {
     subname: "Northern Indian Ocean Basin",
     lat: 14.5,
     lon: 87.5,
+    camLat: 16.0,
+    camLon: 74.0,
+    targetDistance: 25,
     zoom: 2.4,
     status: "High Anomaly (+2.1°C)",
     statusType: "high",
@@ -82,8 +85,8 @@ const OCEAN_REGIONS = {
   pacific: {
     name: "Pacific Ocean",
     subname: "Equatorial & Western Pacific Basin",
-    lat: 0.0,
-    lon: 160.0,
+    lat: 12.0,
+    lon: 155.0,
     zoom: 2.9,
     status: "Normal (ENSO Neutral)",
     statusType: "normal",
@@ -792,7 +795,7 @@ function initThreeGlobe() {
   renderer.setSize(width, height);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMappingExposure = 1.05;
 
   // OrbitControls
   controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -804,16 +807,17 @@ function initThreeGlobe() {
   controls.maxDistance = 55;
   controls.enablePan = false;
 
-  // Lights
-  const ambientLight = new THREE.AmbientLight(0x334466, 1.2);
+  // Lights matching Google Earth orbital illumination
+  const ambientLight = new THREE.AmbientLight(0x556b88, 1.6);
   scene.add(ambientLight);
 
-  const sunLight = new THREE.DirectionalLight(0xffffff, 2.2);
-  sunLight.position.set(40, 20, 30);
+  // Sunlight casting illumination with clear visibility over Northern Indian Ocean basin
+  const sunLight = new THREE.DirectionalLight(0xfff5ea, 1.6);
+  sunLight.position.set(10, 30, 40);
   scene.add(sunLight);
 
-  const secondarySunLight = new THREE.DirectionalLight(0x00f2fe, 0.6);
-  secondarySunLight.position.set(-30, -10, -20);
+  const secondarySunLight = new THREE.DirectionalLight(0x182a44, 0.4);
+  secondarySunLight.position.set(-40, -10, -20);
   scene.add(secondarySunLight);
 
   // Raycaster & Mouse for Interaction
@@ -828,8 +832,8 @@ function initThreeGlobe() {
   createSensorMarkers();
   createOcean3DLabels();
 
-  // Initial focus on Indian Ocean / Bay of Bengal
-  flyToLocation(OCEAN_REGIONS.bay_of_bengal.lat, OCEAN_REGIONS.bay_of_bengal.lon, 28, 1200);
+  // Initial focus matching reference image (Bay of Bengal / Indian Ocean Basin)
+  flyToLocation(16.0, 74.0, 25, 1200);
 
   // Window Resize Listener
   window.addEventListener("resize", onWindowResize);
@@ -843,14 +847,13 @@ function initThreeGlobe() {
 }
 
 /**
- * Creates High-Resolution Realistic Earth Texture via Procedural Canvas
- * Ensures 100% offline & CORS-free reliability with bathymetry, topography, and ocean specular sheen.
+ * Creates High-Resolution Photorealistic Earth matching orbital satellite imagery
  */
 function createRealisticGlobe() {
   const globeRadius = 10;
   const globeGeometry = new THREE.SphereGeometry(globeRadius, 64, 64);
 
-  // Create High-Fidelity Procedural Earth Texture
+  // Fallback procedural canvas texture (ensures offline reliability)
   const textureCanvas = document.createElement("canvas");
   textureCanvas.width = 2048;
   textureCanvas.height = 1024;
@@ -858,19 +861,18 @@ function createRealisticGlobe() {
 
   // 1. Deep Ocean Base with Bathymetric Gradients
   const oceanGrad = ctx.createLinearGradient(0, 0, 0, 1024);
-  oceanGrad.addColorStop(0.0, "#08182d"); // Polar deep
+  oceanGrad.addColorStop(0.0, "#08182d");
   oceanGrad.addColorStop(0.25, "#0b254a");
-  oceanGrad.addColorStop(0.5, "#073b6a"); // Tropical vibrant
+  oceanGrad.addColorStop(0.5, "#073b6a");
   oceanGrad.addColorStop(0.75, "#0b254a");
   oceanGrad.addColorStop(1.0, "#08182d");
   ctx.fillStyle = oceanGrad;
   ctx.fillRect(0, 0, 2048, 1024);
 
-  // 2. Draw Realistic Continents (Equirectangular Map Projection)
-  ctx.fillStyle = "#1b382b"; // Lush dark land
+  // 2. Continents
+  ctx.fillStyle = "#1b382b";
   ctx.strokeStyle = "#2e5c46";
   ctx.lineWidth = 2;
-
   drawContinentPolygons(ctx, 2048, 1024);
 
   // 3. Ice Caps (Arctic & Antarctic)
@@ -886,33 +888,40 @@ function createRealisticGlobe() {
   ctx.fillStyle = polarGradS;
   ctx.fillRect(0, 1024 - 180, 2048, 180);
 
-  // 4. Subtle Latitude / Longitude Scientific Grid
-  ctx.strokeStyle = "rgba(0, 242, 254, 0.08)";
-  ctx.lineWidth = 1;
-  for (let x = 0; x <= 2048; x += 2048 / 12) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, 1024);
-    ctx.stroke();
-  }
-  for (let y = 0; y <= 1024; y += 1024 / 6) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(2048, y);
-    ctx.stroke();
-  }
+  // Create Three.js Initial Texture
+  const earthFallbackTexture = new THREE.CanvasTexture(textureCanvas);
+  earthFallbackTexture.anisotropy = 8;
 
-  // Create Three.js Texture
-  const earthTexture = new THREE.CanvasTexture(textureCanvas);
-  earthTexture.anisotropy = 8;
-
-  // Globe Material with Specular Ocean Reflection
+  // Globe Material with Specular Ocean Reflection & Normal Bump Map
   const globeMaterial = new THREE.MeshPhongMaterial({
-    map: earthTexture,
-    shininess: 35,
-    specular: new THREE.Color(0x00a8ff),
-    emissive: new THREE.Color(0x020813),
+    map: earthFallbackTexture,
+    shininess: 30,
+    specular: new THREE.Color(0x040c18),
+    emissive: new THREE.Color(0x010306),
     bumpScale: 0.05
+  });
+
+  // Load Photorealistic NASA Satellite Earth Textures directly via TextureLoader
+  const textureLoader = new THREE.TextureLoader();
+
+  // 1. Satellite Surface Map
+  textureLoader.load("assets/earth_atmos_2048.jpg", (tex) => {
+    tex.anisotropy = 8;
+    globeMaterial.map = tex;
+    globeMaterial.needsUpdate = true;
+  });
+
+  // 2. Normal / Relief Bump Map for bathymetric trenches & topography
+  textureLoader.load("assets/earth_normal_2048.jpg", (norm) => {
+    globeMaterial.normalMap = norm;
+    globeMaterial.normalScale = new THREE.Vector2(0.85, 0.85);
+    globeMaterial.needsUpdate = true;
+  });
+
+  // 3. Specular Map (oceans shine, continents are matte)
+  textureLoader.load("assets/earth_specular_2048.jpg", (spec) => {
+    globeMaterial.specularMap = spec;
+    globeMaterial.needsUpdate = true;
   });
 
   globeMesh = new THREE.Mesh(globeGeometry, globeMaterial);
@@ -967,17 +976,16 @@ function drawContinentPolygons(ctx, w, h) {
 }
 
 /**
- * Creates Clouds Layer
+ * Creates Clouds Layer with real swirling satellite weather patterns
  */
 function createCloudsLayer(radius) {
-  const cloudGeo = new THREE.SphereGeometry(radius * 1.015, 48, 48);
+  const cloudGeo = new THREE.SphereGeometry(radius * 1.018, 64, 64);
 
+  // Fallback procedural clouds
   const cloudCanvas = document.createElement("canvas");
   cloudCanvas.width = 1024;
   cloudCanvas.height = 512;
   const cctx = cloudCanvas.getContext("2d");
-
-  // Draw semi-transparent atmospheric cloud swirls
   cctx.fillStyle = "rgba(255, 255, 255, 0.28)";
   for (let i = 0; i < 40; i++) {
     const cx = Math.random() * 1024;
@@ -987,13 +995,25 @@ function createCloudsLayer(radius) {
     cctx.arc(cx, cy, cr, 0, Math.PI * 2);
     cctx.fill();
   }
+  const fallbackCloudTex = new THREE.CanvasTexture(cloudCanvas);
 
-  const cloudTexture = new THREE.CanvasTexture(cloudCanvas);
-  const cloudMat = new THREE.MeshPhongMaterial({
-    map: cloudTexture,
+  const cloudMat = new THREE.MeshLambertMaterial({
+    map: fallbackCloudTex,
     transparent: true,
-    opacity: 0.45,
-    blending: THREE.AdditiveBlending
+    opacity: 0.20,
+    blending: THREE.NormalBlending,
+    depthWrite: false
+  });
+
+  // Load high-resolution smoothed transparent cloud texture
+  const textureLoader = new THREE.TextureLoader();
+  textureLoader.load("assets/earth_clouds_trans.png", (cloudTex) => {
+    cloudTex.anisotropy = 8;
+    cloudMat.map = cloudTex;
+    cloudMat.opacity = 0.20;
+    cloudMat.needsUpdate = true;
+  }, undefined, (err) => {
+    console.warn("Cloud trans texture load fallback:", err);
   });
 
   cloudsMesh = new THREE.Mesh(cloudGeo, cloudMat);
@@ -1001,23 +1021,29 @@ function createCloudsLayer(radius) {
 }
 
 /**
- * Realistic Atmospheric Rim Glow Shader
+ * Realistic Atmospheric Rayleigh Rim Glow Shader matching orbital Google Earth view
  */
 function createAtmosphereGlow() {
-  const atmoGeo = new THREE.SphereGeometry(10.6, 48, 48);
+  const atmoGeo = new THREE.SphereGeometry(10.22, 64, 64);
   const atmoMat = new THREE.ShaderMaterial({
     vertexShader: `
       varying vec3 vNormal;
+      varying vec3 vPosition;
       void main() {
         vNormal = normalize(normalMatrix * normal);
+        vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
     fragmentShader: `
       varying vec3 vNormal;
+      varying vec3 vPosition;
       void main() {
-        float intensity = pow(0.65 - dot(vNormal, vec3(0, 0, 1.0)), 2.2);
-        gl_FragColor = vec4(0.0, 0.85, 1.0, 1.0) * intensity * 0.8;
+        vec3 viewDir = normalize(-vPosition);
+        float rim = 1.0 - max(dot(viewDir, vNormal), 0.0);
+        float alpha = pow(rim, 3.6);
+        vec3 glowColor = mix(vec3(0.04, 0.44, 0.94), vec3(0.38, 0.76, 1.0), rim);
+        gl_FragColor = vec4(glowColor, alpha * 0.92);
       }
     `,
     blending: THREE.AdditiveBlending,
@@ -1143,7 +1169,11 @@ function createOceanCurrentStreamlines() {
     oceanCurrentsGroup.add(particleSystem);
   });
 
-  scene.add(oceanCurrentsGroup);
+  if (globeMesh) {
+    globeMesh.add(oceanCurrentsGroup);
+  } else {
+    scene.add(oceanCurrentsGroup);
+  }
 }
 
 /**
@@ -1215,7 +1245,11 @@ function createSensorMarkers() {
     markersGroup.add(anomGroup);
   });
 
-  scene.add(markersGroup);
+  if (globeMesh) {
+    globeMesh.add(markersGroup);
+  } else {
+    scene.add(markersGroup);
+  }
 }
 
 /**
@@ -1264,7 +1298,11 @@ function createOcean3DLabels() {
     labelsGroup.add(sprite);
   });
 
-  scene.add(labelsGroup);
+  if (globeMesh) {
+    globeMesh.add(labelsGroup);
+  } else {
+    scene.add(labelsGroup);
+  }
 }
 
 /**
@@ -1272,6 +1310,9 @@ function createOcean3DLabels() {
  */
 function flyToLocation(lat, lon, targetDistance = 28, duration = 1200) {
   const targetPos = latLonToVector3(lat, lon, targetDistance);
+  if (globeMesh) {
+    targetPos.applyAxisAngle(new THREE.Vector3(0, 1, 0), globeMesh.rotation.y);
+  }
   const startPos = camera.position.clone();
   const startTime = performance.now();
 
@@ -1390,11 +1431,12 @@ function onCanvasMouseMove(event) {
 
   raycaster.setFromCamera(mouse, camera);
 
-  // Check intersections with markers
-  const intersects = raycaster.intersectObjects(markersGroup.children, true);
+  // Check intersections with markers (respecting globe occlusion)
+  const targets = (globeMesh && markersGroup) ? [globeMesh, ...markersGroup.children] : (markersGroup ? markersGroup.children : []);
+  const intersects = raycaster.intersectObjects(targets, true);
   const tooltip = document.getElementById("sensorHoverTooltip");
 
-  if (intersects.length > 0) {
+  if (intersects.length > 0 && intersects[0].object !== globeMesh) {
     const obj = intersects[0].object;
     if (obj.userData && (obj.userData.isSensor || obj.userData.isAnomaly)) {
       document.body.style.cursor = "pointer";
@@ -1438,9 +1480,10 @@ function onCanvasClick(event) {
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
   raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(markersGroup.children, true);
+  const targets = (globeMesh && markersGroup) ? [globeMesh, ...markersGroup.children] : (markersGroup ? markersGroup.children : []);
+  const intersects = raycaster.intersectObjects(targets, true);
 
-  if (intersects.length > 0) {
+  if (intersects.length > 0 && intersects[0].object !== globeMesh) {
     const obj = intersects[0].object;
     if (obj.userData && obj.userData.isSensor) {
       openSensorModal(obj.userData.sensorData);
@@ -1922,7 +1965,10 @@ function selectOceanRegion(regionKey) {
   AppState.currentOceanKey = regionKey;
 
   // 1. Smoothly fly 3D Camera to the region
-  flyToLocation(region.lat, region.lon, region.zoom * 10, 1100);
+  const targetCamLat = region.camLat !== undefined ? region.camLat : region.lat;
+  const targetCamLon = region.camLon !== undefined ? region.camLon : region.lon;
+  const targetDist = region.targetDistance || (region.zoom * 10);
+  flyToLocation(targetCamLat, targetCamLon, targetDist, 1100);
 
   // 2. Synchronize Google Maps camera position
   if (googleMap) {
@@ -1936,8 +1982,21 @@ function selectOceanRegion(regionKey) {
   document.getElementById("hudCoords").textContent = `${Math.abs(region.lat).toFixed(2)}° ${region.lat >= 0 ? 'N' : 'S'}, ${Math.abs(region.lon).toFixed(2)}° ${region.lon >= 0 ? 'E' : 'W'} • Alt: ${(region.zoom * 850).toFixed(0)} km`;
 
   // 4. Update Global Ocean Tabs & Sea Tags active states
+  const parentOceanMap = {
+    bay_of_bengal: "indian",
+    arabian_sea: "indian",
+    andaman_sea: "indian",
+    south_china_sea: "pacific",
+    mediterranean: "atlantic",
+    indian: "indian",
+    pacific: "pacific",
+    atlantic: "atlantic",
+    arctic: "arctic",
+    southern: "southern"
+  };
+  const activeOcean = parentOceanMap[regionKey] || regionKey;
   document.querySelectorAll(".ocean-tab").forEach(tab => {
-    tab.classList.toggle("active", tab.getAttribute("data-ocean") === regionKey);
+    tab.classList.toggle("active", tab.getAttribute("data-ocean") === activeOcean);
   });
   document.querySelectorAll(".sea-tag").forEach(tag => {
     tag.classList.toggle("active", tag.getAttribute("data-location") === regionKey);
